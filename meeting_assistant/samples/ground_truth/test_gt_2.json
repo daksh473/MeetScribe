@@ -1,0 +1,12 @@
+{
+  "_note": "Synthetic ground truth for evaluation testing",
+  "decisions": [],
+  "tasks": [
+    {
+      "id": "T2",
+      "status": "TENTATIVE",
+      "owner": "Unspecified",
+      "deadline": "Unspecified"
+    }
+  ]
+}

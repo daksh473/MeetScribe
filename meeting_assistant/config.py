@@ -77,6 +77,18 @@ def resolve_ffprobe_path() -> str:
 class Settings(BaseSettings):
     # API Keys
     elevenlabs_api_key: str = Field(default="", alias="ELEVENLABS_API_KEY")
+    groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
+    openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
+
+    # LLM Models
+    llm1_model: str = Field(default="", alias="LLM1_MODEL")
+    llm2_model: str = Field(default="", alias="LLM2_MODEL")
+    fallback_models: str = Field(default="", alias="FALLBACK_MODELS")
+    llm_rate_limit_rpm: int = Field(default=20, alias="LLM_RATE_LIMIT_RPM")
+
+    @property
+    def fallback_models_list(self) -> List[str]:
+        return [m.strip() for m in self.fallback_models.split(",") if m.strip()]
 
     # Engine selection and order
     stt_engines: str = Field(default="elevenlabs,whisper", alias="STT_ENGINES")
