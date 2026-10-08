@@ -65,7 +65,12 @@ class ScribeEngine(STTEngine):
         api_key: Optional[str] = None,
         keyterms: Optional[List[str]] = None,
     ) -> None:
-        self._api_key = api_key or os.environ.get("ELEVENLABS_API_KEY", "")
+        key = api_key if api_key is not None else os.environ.get("ELEVENLABS_API_KEY", "")
+        if key:
+            key = key.strip().strip("'").strip('"')
+            if key.lower().startswith("bearer "):
+                key = key[7:].strip()
+        self._api_key = key
         self._keyterms = (keyterms or [])[:_MAX_KEYTERMS]
 
     # ------------------------------------------------------------------
@@ -77,6 +82,15 @@ class ScribeEngine(STTEngine):
         return "elevenlabs"
 
     def _do_transcribe(self, wav_path: str) -> EngineResult:
+        # Check if permanently blocked earlier in the session
+        if hasattr(self, "_account_blocked") and self._account_blocked:
+            return EngineResult(
+                engine_name=self.name,
+                success=False,
+                error=f"Disabled: {self._disabled_reason}",
+                error_class="AccountBlocked"
+            )
+
         # Fail fast if no API key is available.
         if not self._api_key:
             return EngineResult(
@@ -89,8 +103,52 @@ class ScribeEngine(STTEngine):
                 ),
             )
 
-        response = self._call_api(wav_path)
-        return self._parse_response(response)
+        try:
+            response = self._call_api(wav_path)
+            return self._parse_response(response)
+        except Exception as e:
+            err_str = str(e)
+            err_class = e.__class__.__name__
+
+            # Check for permanent account blocks (like free tier disabled)
+            if "401" in err_str or "403" in err_str:
+                if hasattr(e, "response") and e.response:
+                    body = e.response.text
+                    if "detected_unusual_activity" in body or "quota_exceeded" in body:
+                        self._account_blocked = True
+                        msg = body[:200]
+                        self._disabled_reason = f"account block or quota limit ({msg})"
+                        return EngineResult(
+                            engine_name=self.name,
+                            success=False,
+                            error=f"Disabled: {self._disabled_reason}",
+                            error_class="AccountBlocked"
+                        )
+                # Check if it's an ApiError with a body attribute
+                body_str = getattr(e, "body", "")
+                if body_str:
+                    msg = str(body_str)
+                else:
+                    msg = err_str
+                
+                if "detected_unusual_activity" in msg:
+                    self._account_blocked = True
+                    self._disabled_reason = f"free tier disabled for this account ({msg[:150]})"
+                    return EngineResult(
+                        engine_name=self.name,
+                        success=False,
+                        error=f"Disabled: {self._disabled_reason}",
+                        error_class="AccountBlocked"
+                    )
+                # Normal 401 fallback
+                err_str = f"API key rejected (401). Provider message: {msg[:200]}"
+                
+            return EngineResult(
+                engine_name=self.name,
+                success=False,
+                error=err_str,
+                error_class=err_class,
+            )
 
     # ------------------------------------------------------------------
     # API call with retry
@@ -126,7 +184,14 @@ class ScribeEngine(STTEngine):
                 )
                 if self._keyterms:
                     kwargs["keyterms"] = self._keyterms
-                return client.speech_to_text.convert(**kwargs)
+                try:
+                    return client.speech_to_text.convert(**kwargs)
+                except Exception as e:
+                    if e.__class__.__name__ == "ApiError":
+                        status = getattr(e, "status_code", getattr(e, "status", 0))
+                        if status == 429:
+                            raise ConnectionError("429 Too Many Requests - triggering retry") from e
+                    raise
 
         return _do_call()
 

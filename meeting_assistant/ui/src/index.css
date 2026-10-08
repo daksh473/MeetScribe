@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@plugin "tailwind-scrollbar";
+
+@theme {
+  --color-obsidian: #0B0F17;
+  --color-surface: rgba(255, 255, 255, 0.03);
+  --color-surface-hover: rgba(255, 255, 255, 0.06);
+  --color-divider: rgba(255, 255, 255, 0.06);
+  --font-sans: 'Inter', sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-obsidian text-zinc-100 font-sans antialiased overflow-hidden h-screen w-screen selection:bg-zinc-700 selection:text-white;
+    background-image: radial-gradient(circle at 15% 50%, rgba(30, 41, 59, 0.15) 0%, transparent 50%),
+                      radial-gradient(circle at 85% 30%, rgba(15, 23, 42, 0.15) 0%, transparent 50%);
+  }
+}

@@ -9,7 +9,10 @@ Tests verify:
 
 from __future__ import annotations
 
+import struct
 import types
+import wave as wave_mod
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -23,6 +26,16 @@ from stt.schema import EngineResult, Segment, Word
 # ======================================================================
 # Helpers
 # ======================================================================
+
+
+def _make_test_wav(path, duration_s=1.0, sample_rate=16000):
+    """Generate a silent 16-bit mono WAV file for testing."""
+    n_samples = int(sample_rate * duration_s)
+    with wave_mod.open(str(path), "w") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(struct.pack(f"<{n_samples}h", *([0] * n_samples)))
 
 
 def _make_scribe_word(text, start, end, w_type="word", speaker_id=None):
@@ -64,20 +77,24 @@ def _make_whisper_segment(text, start, end, words):
 class TestScribeEngine:
     """Tests for the ElevenLabs Scribe v2 engine."""
 
-    def test_missing_api_key_returns_failed_result(self):
+    def test_missing_api_key_returns_failed_result(self, tmp_path):
         """When no API key is set, the engine must return a clear error."""
         engine = ScribeEngine(api_key="")
-        result = engine.transcribe("dummy.wav")
+        dummy = tmp_path / "dummy.wav"
+        dummy.write_text("fake")
+        result = engine.transcribe(str(dummy))
 
         assert result.success is False
-        assert "API key" in result.error
+        assert "API key" in result.error or "api key" in result.error.lower()
         assert result.engine_name == "elevenlabs"
 
-    def test_missing_api_key_env_fallback(self, monkeypatch):
+    def test_missing_api_key_env_fallback(self, monkeypatch, tmp_path):
         """Even when env var is empty, the error is helpful."""
         monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
         engine = ScribeEngine()
-        result = engine.transcribe("dummy.wav")
+        dummy = tmp_path / "dummy.wav"
+        dummy.write_text("fake")
+        result = engine.transcribe(str(dummy))
 
         assert result.success is False
         assert "ELEVENLABS_API_KEY" in result.error
@@ -90,7 +107,7 @@ class TestScribeEngine:
             result = engine.transcribe("dummy.wav")
 
         assert result.success is False
-        assert "ConnectionError" in result.error
+        assert result.error_class == "ConnectionError"
 
     def test_non_speech_events_excluded_from_text(self):
         """Audio events like (laughter) must not appear in spoken text."""
@@ -179,8 +196,11 @@ class TestWhisperLocalEngine:
         engine._model = mock_model
         return engine
 
-    def test_basic_transcription(self):
+    def test_basic_transcription(self, tmp_path):
         """Happy path: segments and words are mapped correctly."""
+        wav_path = tmp_path / "test.wav"
+        _make_test_wav(wav_path)
+
         words = [
             _make_whisper_word(" Hello", 0.0, 0.5, 0.99),
             _make_whisper_word(" world", 0.5, 1.0, 0.95),
@@ -188,7 +208,7 @@ class TestWhisperLocalEngine:
         segments = [_make_whisper_segment(" Hello world", 0.0, 1.0, words)]
 
         engine = self._make_engine_with_mock_model(segments)
-        result = engine.transcribe("test.wav")
+        result = engine.transcribe(str(wav_path))
 
         assert result.success is True
         assert result.engine_name == "whisper"
@@ -197,13 +217,16 @@ class TestWhisperLocalEngine:
         assert len(result.words) == 2
         assert result.words[0].confidence == pytest.approx(0.99)
 
-    def test_offset_applied(self):
+    def test_offset_applied(self, tmp_path):
         """Global offset must shift all whisper timestamps."""
+        wav_path = tmp_path / "test.wav"
+        _make_test_wav(wav_path)
+
         words = [_make_whisper_word(" hi", 0.0, 0.3, 0.9)]
         segments = [_make_whisper_segment(" hi", 0.0, 0.3, words)]
 
         engine = self._make_engine_with_mock_model(segments)
-        result = engine.transcribe("test.wav", offset_s=100.0)
+        result = engine.transcribe(str(wav_path), offset_s=100.0)
 
         assert result.words[0].start == pytest.approx(100.0)
         assert result.words[0].end == pytest.approx(100.3)
@@ -222,27 +245,35 @@ class TestWhisperLocalEngine:
         assert result.success is False
         assert "CUDA OOM" in result.error
 
-    def test_empty_segments(self):
+    def test_empty_segments(self, tmp_path):
         """If whisper returns no segments, result should still be valid."""
+        wav_path = tmp_path / "silence.wav"
+        _make_test_wav(wav_path)
+
         engine = self._make_engine_with_mock_model([])
-        result = engine.transcribe("silence.wav")
+        result = engine.transcribe(str(wav_path))
 
         assert result.success is True
         assert result.text == ""
         assert result.words == []
 
-    def test_model_cached_across_calls(self):
+    def test_model_cached_across_calls(self, tmp_path):
         """The WhisperModel should be loaded once and reused."""
+        wav_a = tmp_path / "a.wav"
+        wav_b = tmp_path / "b.wav"
+        _make_test_wav(wav_a)
+        _make_test_wav(wav_b)
+
         words = [_make_whisper_word(" ok", 0.0, 0.2, 0.8)]
         segments = [_make_whisper_segment(" ok", 0.0, 0.2, words)]
 
         engine = self._make_engine_with_mock_model(segments)
         mock_model = engine._model
 
-        engine.transcribe("a.wav")
+        engine.transcribe(str(wav_a))
         # Re-set the iterator for the second call.
         mock_model.transcribe.return_value = (iter(segments), MagicMock())
-        engine.transcribe("b.wav")
+        engine.transcribe(str(wav_b))
 
         # _get_model should return the same object, not re-instantiate.
         assert engine._model is mock_model

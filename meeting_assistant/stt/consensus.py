@@ -22,13 +22,6 @@ from .schema import EngineResult, Word
 from .text_norm import NormalizedToken, normalize_sequence
 
 
-# Configurable prior weights for voting.
-# We give elevenlabs (Scribe) a slight edge over whisper if confidence is missing/tied.
-ENGINE_PRIORS = {
-    "elevenlabs": 1.1,
-    "whisper": 1.0,
-}
-
 
 class AlignmentSlot(NamedTuple):
     """A single position in the aligned sequence containing each engine's token."""
@@ -143,6 +136,8 @@ def _align_pairwise(
 
 def build_consensus(results: List[EngineResult]) -> ConsensusResult:
     """Build consensus from N engine results."""
+    from config import settings
+    
     # Filter to successful results
     success_results = [r for r in results if r.success]
     
@@ -177,6 +172,7 @@ def build_consensus(results: List[EngineResult]) -> ConsensusResult:
         
     consensus_words = []
     disputed_slots = []
+    priors = settings.engine_priors
     
     for slot in slots:
         if slot.is_disputed:
@@ -186,12 +182,13 @@ def build_consensus(results: List[EngineResult]) -> ConsensusResult:
         best_word = None
         best_score = -1.0
         
-        for engine_name, res in [(res1.engine_name, res1), (res2.engine_name, res2)]:
+        for res in success_results[:2]:
+            engine_name = res.engine_name
             tok = slot.engine_tokens.get(engine_name)
             if not tok:
                 continue
                 
-            prior = ENGINE_PRIORS.get(engine_name, 1.0)
+            prior = priors.get(engine_name, 1.0)
             
             # Compute average confidence for the normalized token
             conf_sum = 0.0
@@ -209,10 +206,6 @@ def build_consensus(results: List[EngineResult]) -> ConsensusResult:
             if score > best_score:
                 best_score = score
                 
-                # Construct the display word(s)
-                # We merge the original words into a single Word object for the consensus
-                # Or we can keep them separate? "Output: consensus word list (original display tokens, with start/end)"
-                # If a token spans multiple words, we just take the first word's start and last word's end, and join text.
                 start = res.words[tok.orig_indices[0]].start
                 end = res.words[tok.orig_indices[-1]].end
                 text = " ".join([res.words[i].text for i in tok.orig_indices])
@@ -228,5 +221,8 @@ def build_consensus(results: List[EngineResult]) -> ConsensusResult:
                 
         if best_word:
             consensus_words.append(best_word)
+            
+    # For N>2, we would progressive align res3, res4 here.
+    # Currently limited to 2 engines for simplicity as the pipeline only supports pairwise reliably.
             
     return ConsensusResult(consensus_words, disputed_slots, [])

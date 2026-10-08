@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeetScribe</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div id="demo-banner" class="banner info-banner hidden text-center" style="margin:0; border-radius:0;">DEMO DATA</div>
+    
+    <!-- Top Bar for Upload Screen -->
+    <header id="top-bar" class="top-bar hidden">
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2v20M17 5v14M22 10v4M7 5v14M2 10v4"/>
+            </svg>
+            MeetScribe
+        </div>
+        <button id="nav-new-meeting" class="btn btn-sm">New Meeting</button>
+    </header>
+
+    <main id="app-root" class="container"></main>
+
+    <!-- Docked Audio Player (Injected by JS when needed) -->
+    <div id="audio-dock-container"></div>
+
+    <!-- Modals / Popovers Container -->
+    <div id="overlay-container"></div>
+
+    <script type="module" src="/js/main.js"></script>
+</body>
+</html>

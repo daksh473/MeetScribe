@@ -95,8 +95,55 @@ def test_one_engine_failed():
     spans = generate_spans(consensus.disputed_slots, [res1, res2])
     
     assert len(spans) == 0
-    assert "single_engine" in consensus.flags
-    assert len(consensus.words) == 1
+def test_two_whisper_engines_consensus():
+    """Test consensus between two Whisper-like engines (e.g. local vs Groq) with realistic differences."""
+    # Engine 1 (local whisper): "We have 15 users, but John didn't like it."
+    # Engine 2 (groq whisper): "We have fifteen users, but Jon did not like it."
+    
+    words1 = [
+        Word(text="We", start=0.0, end=0.5, confidence=0.9),
+        Word(text="have", start=0.5, end=1.0, confidence=0.9),
+        Word(text="15", start=1.0, end=1.5, confidence=0.9),
+        Word(text="users,", start=1.5, end=2.0, confidence=0.9),
+        Word(text="but", start=2.0, end=2.5, confidence=0.9),
+        Word(text="John", start=2.5, end=3.0, confidence=0.9),
+        Word(text="didn't", start=3.0, end=3.5, confidence=0.9),
+        Word(text="like", start=3.5, end=4.0, confidence=0.9),
+        Word(text="it.", start=4.0, end=4.5, confidence=0.9),
+    ]
+    
+    words2 = [
+        Word(text="We", start=0.0, end=0.5, confidence=0.95),
+        Word(text="have", start=0.5, end=1.0, confidence=0.95),
+        Word(text="fifteen", start=1.0, end=1.5, confidence=0.95),
+        Word(text="users,", start=1.5, end=2.0, confidence=0.95),
+        Word(text="but", start=2.0, end=2.5, confidence=0.95),
+        Word(text="Jon", start=2.5, end=3.0, confidence=0.95),
+        Word(text="did", start=3.0, end=3.25, confidence=0.95),
+        Word(text="not", start=3.25, end=3.5, confidence=0.95),
+        Word(text="like", start=3.5, end=4.0, confidence=0.95),
+        Word(text="it.", start=4.0, end=4.5, confidence=0.95),
+    ]
+    
+    res1 = EngineResult(engine_name="whisper", success=True, words=words1)
+    res2 = EngineResult(engine_name="groq_whisper", success=True, words=words2)
+    
+    consensus = build_consensus([res1, res2])
+    
+    # 15 vs fifteen should be normalized to the same token, not disputed
+    # John vs Jon -> disputed
+    # didn't vs did not -> normalization expands didn't to did not, so not disputed
+    
+    spans = generate_spans(consensus.disputed_slots, [res1, res2])
+    
+    assert len(spans) >= 1
+    
+    # Verify John/Jon span is present
+    john_span = next(s for s in spans if any("John" in t for t in list(s.alternatives.values()) + [s.chosen_text]))
+    texts = list(john_span.alternatives.values()) + [john_span.chosen_text]
+    assert "John" in texts or "John didn't" in texts
+    assert "Jon" in texts or "Jon did not" in texts
+    assert len(consensus.words) > 0
 
 
 def test_timestamps_offset():

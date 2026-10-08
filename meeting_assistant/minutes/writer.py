@@ -32,22 +32,42 @@ def _render_fallback(decisions: List[Decision], tasks: List[ActionItem], meta: M
     """Fallback plain template rendering of the ledger if LLM fails."""
     sections = []
     
-    if decisions:
-        lines = []
-        for d in decisions:
-            mark = " (⚠️ Low Confidence)" if d.low_confidence else ""
-            lines.append(f"- [{d.status}] {d.text} {mark} (cite: {d.id})")
-        sections.append({"title": "Decisions", "content": "\n".join(lines), "cited_ids": [d.id for d in decisions]})
+    agreed = [d for d in decisions if d.status == "AGREED"]
+    rejected = [d for d in decisions if d.status == "REJECTED"]
+    
+    confirmed = [t for t in tasks if t.status == "CONFIRMED"]
+    tentative = [t for t in tasks if t.status == "TENTATIVE"]
+    deferred = [t for t in tasks if t.status == "DEFERRED"]
+    unresolved = [t for t in tasks if t.status == "UNRESOLVED"]
+    
+    def format_d(d):
+        mark = " (⚠️ Low Confidence)" if d.low_confidence else ""
+        return f"- {d.text} {mark} (cite: {d.id})"
         
-    if tasks:
-        lines = []
-        for t in tasks:
-            mark = " (⚠️ Low Confidence)" if t.low_confidence else ""
-            lines.append(f"- [{t.status}] {t.task} | Owner: {t.owner} | Deadline: {t.deadline} {mark} (cite: {t.id})")
-        sections.append({"title": "Action Items", "content": "\n".join(lines), "cited_ids": [t.id for t in tasks]})
+    def format_t(t):
+        mark = " (⚠️ Low Confidence)" if t.low_confidence else ""
+        return f"- {t.task} | Owner: {t.owner} | Deadline: {t.deadline} {mark} (cite: {t.id})"
+    
+    if agreed:
+        sections.append({"title": "Decisions", "content": "\n".join(format_d(d) for d in agreed), "cited_ids": [d.id for d in agreed]})
+        
+    if confirmed:
+        sections.append({"title": "Action Items", "content": "\n".join(format_t(t) for t in confirmed), "cited_ids": [t.id for t in confirmed]})
+        
+    if tentative:
+        sections.append({"title": "Tentative", "content": "\n".join(format_t(t) for t in tentative), "cited_ids": [t.id for t in tentative]})
+        
+    if deferred:
+        sections.append({"title": "Deferred", "content": "\n".join(format_t(t) for t in deferred), "cited_ids": [t.id for t in deferred]})
+        
+    if rejected:
+        sections.append({"title": "Rejected", "content": "\n".join(format_d(d) for d in rejected), "cited_ids": [d.id for d in rejected]})
+        
+    if unresolved:
+        sections.append({"title": "Unresolved", "content": "\n".join(format_t(t) for t in unresolved), "cited_ids": [t.id for t in unresolved]})
         
     return MeetingRecord(
-        summary="Automated fallback summary (LLM generation failed or rejected).",
+        summary="Automated fallback summary based on deterministic ledger contents.",
         minutes=sections,
         decisions=decisions,
         action_items=tasks,

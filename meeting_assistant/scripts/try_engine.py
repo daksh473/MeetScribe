@@ -24,11 +24,12 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from stt.engines.scribe import ScribeEngine
 from stt.engines.whisper_local import WhisperLocalEngine
-
+from stt.engines.groq_whisper import GroqWhisperEngine
 
 _ENGINES = {
     "whisper": WhisperLocalEngine,
     "elevenlabs": ScribeEngine,
+    "groq_whisper": GroqWhisperEngine,
 }
 
 
@@ -82,7 +83,7 @@ def main() -> None:
     for w in result.words:
         spk = f"  [{w.speaker}]" if w.speaker else ""
         conf = f"  conf={w.confidence:.3f}" if w.confidence is not None else ""
-        print(f"  [{w.start:8.2f}s → {w.end:8.2f}s]  {w.text}{spk}{conf}")
+        print(f"  [{w.start:8.2f}s -> {w.end:8.2f}s]  {w.text}{spk}{conf}")
 
     print(f"\nProcessing time: {result.processing_time_s:.2f}s")
     print(f"Segments: {len(result.segments)}")

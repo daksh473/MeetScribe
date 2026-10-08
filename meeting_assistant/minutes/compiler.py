@@ -152,14 +152,24 @@ def compile_ledger(acts: List[DialogueAct], utterances: List[Utterance], window:
             if owners:
                 o_act = owners[0]
                 spk = _find_speaker(o_act.utterance_id, utterances)
-                # Naive first person check
+                
+                # Check for tentative language in all owner/task acts
+                tentative_words = {"might", "maybe", "should", "could", "can", "probably"}
+                is_tentative = False
+                for a in [t] + owners:
+                    for u in utterances:
+                        if u.id == a.utterance_id:
+                            text_lower = u.text.lower()
+                            if "?" in text_lower or any(w in text_lower.split() for w in tentative_words):
+                                is_tentative = True
+                            
                 quote_lower = o_act.quote.lower()
                 if "i'll" in quote_lower or "i will" in quote_lower or "i can" in quote_lower or "let me" in quote_lower:
                     owner = f"{spk} (self-assigned)"
                 else:
                     owner = o_act.quote
                     
-                status = "CONFIRMED"
+                status = "TENTATIVE" if is_tentative else "CONFIRMED"
             elif agreements:
                 status = "CONFIRMED"
                 

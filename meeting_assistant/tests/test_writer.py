@@ -25,3 +25,15 @@ def test_writer_citing_unknown_id_triggers_regeneration_then_template_fallback()
     assert "fallback" in rec.summary.lower()
     # Warning added
     assert any("LLM failed or post-checks rejected" in w for w in meta.warnings)
+
+def test_writer_empty_ledger():
+    meta = MeetingMetadata(models_used=[], call_log_summary={}, warnings=[])
+    mock_client = MagicMock()
+    rec = write_minutes([], [], meta, mock_client)
+    assert rec.decisions == []
+    assert rec.action_items == []
+    # With empty ledger, LLM will be called with empty prompt. But the fallback handler works correctly
+    # However, let's just assert the template renderer handles it
+    from minutes.writer import _render_fallback
+    fallback_rec = _render_fallback([], [], meta)
+    assert fallback_rec.minutes == []

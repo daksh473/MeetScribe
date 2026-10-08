@@ -69,6 +69,9 @@ python scripts/eval_ledger.py samples/ground_truth/test_gt_1.json outputs/meetin
 ### 2. Installation
 ```bash
 cd meeting_assistant
+python -m venv venv
+venv\Scripts\activate  # On Windows
+# source venv/bin/activate  # On macOS/Linux
 pip install -r requirements.txt
 ```
 
@@ -78,15 +81,38 @@ Copy `.env.example` to `.env`:
 cp .env.example .env
 ```
 
+Open `.env` and fill in the API keys yourself. Never commit your `.env` file!
+
 #### LLM Configuration & Setup
 MeetScribe uses robust LLM logic requiring external providers.
-- **API Keys**: Configure `GROQ_API_KEY` and `OPENROUTER_API_KEY` in `.env`.
+- **API Keys**: Configure `GROQ_API_KEY` and `OPENROUTER_API_KEY` in `.env`. (GROQ is required for LLM stages, OpenRouter is a fallback).
 - **Model IDs**: Model names shift rapidly. Always verify the exact model ID strings (e.g., `llama3-70b-8192`) on the provider's live dashboard/docs.
 - **Rate Limits**: Free-tier accounts have strict requests-per-minute (RPM) limits. Adjust `LLM_RATE_LIMIT_RPM` to prevent failures.
 - **Privacy Caveat**: Audio transcripts are sent to third-party APIs for processing. Do NOT use this tool for highly confidential or proprietary meetings unless you have signed data privacy agreements with your chosen LLM providers.
 
-### 4. Running Tests
-Run pytest from the `meeting_assistant` directory:
+### 4. Setup Checks & Secrets Scanning
+Before running a demo or committing code, run the setup checker to verify dependencies and API keys securely (this will not print your full keys):
+```bash
+python scripts/check_setup.py
+```
+
+To prevent accidental API key leaks, install the secrets scanner as a git pre-commit hook. Run this from the project root:
+```bash
+cat << 'EOF' > .git/hooks/pre-commit
+#!/bin/sh
+python meeting_assistant/scripts/scan_secrets.py
+EOF
+chmod +x .git/hooks/pre-commit
+```
+
+### 5. Running Tests
+Run pytest from the `meeting_assistant` directory to ensure core logic is intact (works without API keys):
 ```bash
 python -m pytest tests/ -v
 ```
+
+## Deployment Notes
+**Streamlit Community Cloud:** If you are deploying this as a Streamlit app to the Community Cloud, put your API keys in the app's Secrets settings online, not in the repository. The application will securely read from `st.secrets` if available. Do NOT create `.streamlit/secrets.toml` with real values locally if you intend to commit it.
+
+## API Server
+Run the web API with: uvicorn app.main:app --reload

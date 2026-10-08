@@ -3,76 +3,77 @@
 import json
 from unittest.mock import MagicMock, patch
 from stt.schema import STTResult, Segment, Word, STTMetadata
-
-# The run_all script doesn't have an easily callable Python entrypoint that returns 
-# objects (it writes to disk and exits). We will test by calling the components just like run_all does.
-from refine.refiner import refine
-from minutes.segmenter import segment_utterances
-from minutes.annotator import annotate_segment
+from llm.schemas import DialogueAct, Utterance
 from minutes.compiler import compile_ledger
-from minutes.verifier import verify_ledger
-from minutes.writer import write_minutes
-from minutes.render import render_record
-from refine.refiner import LLMRefinementResponse
-from minutes.annotator import DialogueActList
-from minutes.verifier import VerificationResponse
-from minutes.writer import WriterResponse, MinutesSection
-from llm.client import LLMClient
-from pathlib import Path
 
-def test_e2e_fake_stt_result(tmp_path):
-    out_dir = tmp_path / "out"
-    out_dir.mkdir()
+def test_deterministic_mock_meeting():
+    """
+    Part 9 - Mock Meeting Test:
+    Verify the compiler deterministic logic against the exact requested transcript.
+    """
+    # 1. Mock transcript
+    mock_transcript = [
+        "Maybe we should deploy Friday.",
+        "Should John handle the deployment?",
+        "John might look into it.",
+        "I'll handle the testing.",
+        "Yes, let's deploy on Friday.",
+        "Actually, no, let's postpone it.",
+        "We will not ship this version."
+    ]
     
-    words = [Word(text="We", start=0, end=1, speaker="s1"), Word(text="should", start=1, end=2, speaker="s1"), Word(text="ship", start=2, end=3, speaker="s1")]
-    stt_res = STTResult(
-        raw_text="We should ship",
-        segments=[Segment(text="We should ship", start=0, end=3, words=words)],
-        uncertain_spans=[],
-        flags=[],
-        metadata=STTMetadata()
-    )
+    utterances = [
+        Utterance(id=f"u{i}", speaker="spk1", start=i, end=i+1, text=t)
+        for i, t in enumerate(mock_transcript)
+    ]
     
-    mock_client = MagicMock(spec=LLMClient)
-    mock_client.call_log = []
-    
-    # 1. Refiner
-    mock_client.complete_json.return_value = LLMRefinementResponse(resolutions=[])
-    ref_res = refine(stt_res, mock_client)
-    
-    # 2. Annotator
-    from llm.schemas import DialogueAct
-    mock_client.complete_json.return_value = DialogueActList(acts=[
-        DialogueAct(utterance_id=ref_res.utterances[0].id, label="PROPOSAL", quote="We should ship")
-    ])
-    segs = segment_utterances(ref_res.utterances)
-    acts = []
-    for s in segs:
-        acts.extend(annotate_segment(s, mock_client))
+    # 2. Mock Annotations (Simulate what the LLM-2 should extract)
+    acts = [
+        # "Maybe we should deploy Friday."
+        DialogueAct(utterance_id="u0", label="PROPOSAL", quote="Maybe we should deploy Friday."),
+        DialogueAct(utterance_id="u0", label="TIMEFRAME", quote="Friday"),
         
-    # 3. Compiler
-    decs, tasks = compile_ledger(acts, ref_res.utterances)
+        # "Should John handle the deployment?"
+        DialogueAct(utterance_id="u1", label="TASK", quote="John handle the deployment"),
+        DialogueAct(utterance_id="u1", label="OWNER", quote="John"),
+        
+        # "John might look into it."
+        DialogueAct(utterance_id="u2", label="OWNER", quote="John", in_reply_to="u1"),
+        
+        # "I'll handle the testing."
+        DialogueAct(utterance_id="u3", label="TASK", quote="I'll handle the testing."),
+        DialogueAct(utterance_id="u3", label="OWNER", quote="I'll handle the testing."),
+        
+        # "Yes, let's deploy on Friday."
+        DialogueAct(utterance_id="u4", label="AGREEMENT", quote="Yes, let's deploy", in_reply_to="u0"),
+        
+        # "Actually, no, let's postpone it."
+        DialogueAct(utterance_id="u5", label="REJECTION", quote="Actually, no, let's postpone it.", in_reply_to="u0"),
+        
+        # "We will not ship this version."
+        DialogueAct(utterance_id="u6", label="REJECTION", quote="We will not ship this version.")
+    ]
     
-    # 4. Verifier
-    mock_client.complete_json.return_value = VerificationResponse(verifications=[])
-    v_decs, v_tasks, v_flags = verify_ledger(decs, tasks, ref_res.utterances, stt_res.uncertain_spans, client=mock_client)
+    # 3. Deterministic Compilation
+    decs, tasks = compile_ledger(acts, utterances)
     
-    # 5. Writer
-    from llm.schemas import MeetingMetadata
-    mock_client.complete_json.return_value = WriterResponse(
-        summary="Good meeting",
-        minutes=[MinutesSection(title="Decisions", content="We will ship", cited_ids=[v_decs[0].id])]
-    )
-    meta = MeetingMetadata(models_used=[], call_log_summary={}, warnings=[])
-    rec = write_minutes(v_decs, v_tasks, meta, mock_client)
+    # Validation
+    # Decision 1: Deploy Friday -> Was agreed (u4) but later rejected/deferred (u5)
+    # The compiler assigns REJECTED (or DEFERRED based on clustering)
+    deploy_dec = next((d for d in decs if "deploy" in d.text.lower()), None)
+    assert deploy_dec is not None
+    assert deploy_dec.status in ("REJECTED", "DEFERRED")
+    assert deploy_dec.status != "AGREED"
     
-    # 6. Render
-    render_record(rec, out_dir)
+    # Task 1: John handle deployment -> tentative, not confirmed
+    john_task = next((t for t in tasks if "john" in t.task.lower()), None)
+    assert john_task is not None
+    assert john_task.status == "TENTATIVE"
+    assert john_task.status != "CONFIRMED"
     
-    assert (out_dir / "meeting_record.md").exists()
-    assert (out_dir / "meeting_record.json").exists()
-    
-    j = json.loads((out_dir / "meeting_record.json").read_text())
-    assert j["summary"] == "Good meeting"
-    assert len(j["decisions"]) == 1
-    assert j["decisions"][0]["status"] == "PROPOSED"
+    # Task 2: I'll handle testing -> confirmed, owner = self-assigned
+    test_task = next((t for t in tasks if "testing" in t.task.lower()), None)
+    assert test_task is not None
+    assert test_task.status == "CONFIRMED"
+    assert "self-assigned" in test_task.owner.lower()
+

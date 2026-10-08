@@ -102,6 +102,16 @@ def verify_ledger(
                             t.task += f" (Warning: Evidence overlaps disputed span {span.id})"
                             break
         if keep:
+            # Deterministic hallucination checks for owner and deadline
+            combined_ev = " ".join(new_ev).lower()
+            if t.owner != "Unspecified" and "self-assigned" not in t.owner.lower():
+                if t.owner.lower() not in combined_ev:
+                    t.owner = "UNSUPPORTED"
+                    
+            if t.deadline != "Unspecified":
+                if t.deadline.lower() not in combined_ev:
+                    t.deadline = "UNSUPPORTED"
+                    
             t.evidence = new_ev
             valid_tasks.append(t)
         else:

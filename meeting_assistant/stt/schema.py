@@ -32,10 +32,12 @@ class EngineResult(BaseModel):
     engine_name: str
     success: bool
     error: Optional[str] = None
+    error_class: Optional[str] = None
     text: str = ""
     segments: List[Segment] = Field(default_factory=list)
     words: List[Word] = Field(default_factory=list)
     processing_time_s: float = 0.0
+    warnings: List[str] = Field(default_factory=list)
 
 
 class UncertainSpan(BaseModel):
@@ -55,6 +57,7 @@ class STTMetadata(BaseModel):
     """Operational metadata regarding the STT pipeline run."""
 
     engines_used: List[str] = Field(default_factory=list)
+    engine_statuses: Dict[str, str] = Field(default_factory=dict)
     fallback_used: bool = False
     audio_duration_s: float = 0.0
     chunk_count: int = 1

@@ -22,6 +22,8 @@ from stt.uncertainty import generate_spans
 from stt.validator import validate_audio
 
 
+from stt.engines.groq_whisper import GroqWhisperEngine
+
 def _get_engines() -> List[STTEngine]:
     """Initialize STT engines based on configuration."""
     engines: List[STTEngine] = []
@@ -30,6 +32,8 @@ def _get_engines() -> List[STTEngine]:
             engines.append(ScribeEngine())
         elif eng_name == "whisper":
             engines.append(WhisperLocalEngine())
+        elif eng_name == "groq_whisper":
+            engines.append(GroqWhisperEngine())
     return engines
 
 
@@ -97,7 +101,7 @@ def run_stt(audio_path: str, progress_cb: Callable[[str, float, str], None] | No
     metadata = STTMetadata()
     
     # 1. Validate
-    progress_cb("validate", 0.0, "Validating audio file...")
+    progress_cb("validating", 0.0, "Validating audio file...")
     audio_info = validate_audio(audio_path)
     metadata.audio_duration_s = audio_info.duration
     
@@ -105,12 +109,12 @@ def run_stt(audio_path: str, progress_cb: Callable[[str, float, str], None] | No
     temp_dir = tempfile.mkdtemp(prefix="meetscribe_")
     try:
         # 2. Normalize
-        progress_cb("normalize", 0.1, "Normalizing audio format...")
+        progress_cb("validating", 0.3, "Normalizing audio format...")
         norm_path = str(Path(temp_dir) / "normalized.wav")
         normalize_audio(audio_path, norm_path)
         
         # 3. Chunk
-        progress_cb("chunk", 0.2, "Chunking audio...")
+        progress_cb("validating", 0.6, "Chunking audio...")
         chunks = split_on_silence(norm_path, out_dir=str(Path(temp_dir)))
         metadata.chunk_count = len(chunks)
         
@@ -121,13 +125,15 @@ def run_stt(audio_path: str, progress_cb: Callable[[str, float, str], None] | No
             
         engine_results = {e.name: [] for e in engines}
         
-        progress_cb("transcribe", 0.3, "Transcribing audio chunks...")
+        progress_cb("transcribing", 0.0, "Transcribing audio chunks...")
         
         # Run engines on chunks in parallel
         # To keep it safe, we'll iterate engines, and within engine parallelize chunks,
         # or parallelize everything.
         total_tasks = len(engines) * len(chunks)
         completed = 0
+        # Track how many chunks had at least one engine succeed
+        chunks_with_success = set()
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(4, total_tasks)) as executor:
             future_to_task = {}
@@ -141,17 +147,46 @@ def run_stt(audio_path: str, progress_cb: Callable[[str, float, str], None] | No
                 try:
                     res = future.result()
                     engine_results[eng_name].append((chunk_idx, res))
+                    if res.success:
+                        chunks_with_success.add(chunk_idx)
+                        
+                        # Speed guard for Whisper CPU
+                        if eng_name == "whisper":
+                            # We can find the engine instance
+                            actual_eng = next((e for e in engines if e.name == "whisper"), None)
+                            if actual_eng and getattr(actual_eng, "resolved_device", None) == "cpu":
+                                if metadata.audio_duration_s > 1200 and getattr(actual_eng, "resolved_model_size", "small") not in ("tiny", "base", "small"):
+                                    msg = "Running on CPU: transcription may be slow for long audio."
+                                    if msg not in metadata.warnings:
+                                        metadata.warnings.append(msg)
                 except Exception as e:
                     # Blanket catch to prevent one failed engine/chunk from crashing pipeline
-                    err_res = EngineResult(engine_name=eng_name, success=False, error=str(e))
+                    err_res = EngineResult(engine_name=eng_name, success=False, error=str(e), error_class=e.__class__.__name__)
                     engine_results[eng_name].append((chunk_idx, err_res))
                 
                 completed += 1
-                frac = 0.3 + 0.5 * (completed / total_tasks)
-                progress_cb("transcribe", frac, f"Transcribed {completed}/{total_tasks} chunks")
+                frac = completed / total_tasks
+                
+                # Build per-chunk status message
+                chunk_status = []
+                for e in engines:
+                    r = next((cr for idx, cr in engine_results[e.name] if idx == chunk_idx), None)
+                    if r:
+                        if r.success:
+                            chunk_status.append(f"{e.name} OK")
+                        else:
+                            # Truncate long error messages for display
+                            err_short = (r.error or "unknown")[:80]
+                            chunk_status.append(f"{e.name} failed: {err_short}")
+                    else:
+                        chunk_status.append(f"{e.name} pending")
+                
+                msg = f"chunk {chunk_idx + 1}/{len(chunks)}: " + ", ".join(chunk_status)
+                progress_cb("transcribing", frac, msg)
                 
         # Merge chunks per engine
         final_engine_results = []
+        engine_errors = []
         for eng_name, chunk_res_list in engine_results.items():
             # Sort by chunk index
             chunk_res_list.sort(key=lambda x: x[0])
@@ -159,28 +194,52 @@ def run_stt(audio_path: str, progress_cb: Callable[[str, float, str], None] | No
             
             # Check if all failed
             if all(not r.success for r in res_list):
-                metadata.warnings.append(f"Engine {eng_name} failed on all chunks.")
+                # Collect ALL distinct error reasons for this engine
+                reasons = []
+                for r in res_list:
+                    if r.error and r.error not in reasons:
+                        reasons.append(r.error)
+                err_msg = "; ".join(reasons) if reasons else "unknown error"
+                err_class = next((r.error_class for r in res_list if r.error_class), None)
+                if err_class:
+                    err_str = f"{err_msg} ({err_class})"
+                    engine_errors.append(f"{eng_name}: {err_str}")
+                else:
+                    err_str = err_msg
+                    engine_errors.append(f"{eng_name}: {err_str}")
+                
+                metadata.engine_statuses[eng_name] = f"blocked / failed ({err_str})"
             else:
                 merged = _merge_chunk_results(res_list)
                 if merged.success:
                     final_engine_results.append(merged)
                     metadata.engines_used.append(eng_name)
+                    metadata.engine_statuses[eng_name] = "OK"
+                    for r in res_list:
+                        for w in getattr(r, 'warnings', []):
+                            if w not in metadata.warnings:
+                                metadata.warnings.append(w)
                     
         if not final_engine_results:
-            raise STTError("All STT engines failed to transcribe the audio.")
+            # List EVERY engine with its own reason
+            err_details = " | ".join(engine_errors) if engine_errors else "unknown error"
+            raise STTError(f"All STT engines failed. {err_details}")
             
         if len(final_engine_results) < len(engines):
             metadata.fallback_used = True
+            # Record EACH failed engine with its specific reason as a warning
+            for err in engine_errors:
+                metadata.warnings.append(f"Single-engine mode: {err}. Uncertainty map will be empty.")
             
         # 5. Consensus
-        progress_cb("consensus", 0.85, "Building consensus...")
+        progress_cb("consensus", 0.0, "Building consensus...")
         consensus_res = build_consensus(final_engine_results)
         
         if not consensus_res.words:
             raise NoSpeechError()
             
         # 6. Uncertainty Map
-        progress_cb("uncertainty", 0.9, "Mapping uncertainty...")
+        progress_cb("consensus", 0.5, "Mapping uncertainty...")
         spans = generate_spans(consensus_res.disputed_slots, final_engine_results)
         
         # Build STTResult
@@ -205,10 +264,10 @@ def run_stt(audio_path: str, progress_cb: Callable[[str, float, str], None] | No
         )
         
         # 7. Post-checks
-        progress_cb("postchecks", 0.95, "Running post-checks...")
+        progress_cb("consensus", 0.9, "Running post-checks...")
         run_postchecks(result)
         
-        progress_cb("done", 1.0, "Transcription complete.")
+        progress_cb("consensus", 1.0, "Transcription complete.")
         return result
         
     finally:

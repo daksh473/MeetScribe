@@ -1,0 +1,136 @@
+2026-10-07 23:00:07,385 - app - ERROR - Pipeline error (ID: 540c6122) during refining: Exception
+Traceback (most recent call last):
+  File "C:\Users\daksh\Downloads\MeetScribe\meeting_assistant\app\main.py", line 137, in _run_pipeline
+    ref_res = refine(stt_res, client)
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1228, in _execute_mock_call
+    raise effect
+Exception: OpenRouter 429
+
+2026-10-07 23:13:18,710 - app - ERROR - Pipeline error (ID: 455fa79d) during transcribe: STTError
+Traceback (most recent call last):
+  File "C:\Users\daksh\Downloads\MeetScribe\meeting_assistant\app\main.py", line 122, in _run_pipeline
+    stt_res = run_stt(str(audio_path), progress_cb=cb)
+  File "C:\Users\daksh\Downloads\MeetScribe\meeting_assistant\stt\pipeline.py", line 170, in run_stt
+    raise STTError("All STT engines failed to transcribe the audio.")
+stt.errors.STTError: All STT engines failed to transcribe the audio.
+
+2026-10-07 23:17:54,498 - app - ERROR - Pipeline error (ID: 48554ad7) during transcribe: STTError
+Traceback (most recent call last):
+  File "C:\Users\daksh\Downloads\MeetScribe\meeting_assistant\app\main.py", line 122, in _run_pipeline
+    stt_res = run_stt(str(audio_path), progress_cb=cb)
+  File "C:\Users\daksh\Downloads\MeetScribe\meeting_assistant\stt\pipeline.py", line 170, in run_stt
+    raise STTError("All STT engines failed to transcribe the audio.")
+stt.errors.STTError: All STT engines failed to transcribe the audio.
+
+2026-10-07 23:25:40,789 - app - ERROR - Pipeline error (ID: 665f9c9c) during refining: Exception
+Traceback (most recent call last):
+  File "C:\Users\daksh\Downloads\MeetScribe\meeting_assistant\app\main.py", line 137, in _run_pipeline
+    ref_res = refine(stt_res, client)
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1228, in _execute_mock_call
+    raise effect
+Exception: OpenRouter 429
+
+2026-10-07 23:26:26,558 - app - ERROR - Pipeline error (ID: 5c034d45) during refining: Exception
+Traceback (most recent call last):
+  File "C:\Users\daksh\Downloads\MeetScribe\meeting_assistant\app\main.py", line 137, in _run_pipeline
+    ref_res = refine(stt_res, client)
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1228, in _execute_mock_call
+    raise effect
+Exception: OpenRouter 429
+
+2026-10-07 23:29:45,555 - app - ERROR - Pipeline error (ID: 8469a30f) during transcribing: STTError
+Traceback (most recent call last):
+  File "C:\Users\daksh\Downloads\MeetScribe\meeting_assistant\app\main.py", line 122, in _run_pipeline
+    stt_res = run_stt(str(audio_path), progress_cb=cb)
+  File "C:\Users\daksh\Downloads\MeetScribe\meeting_assistant\stt\pipeline.py", line 182, in run_stt
+    raise STTError(f"All STT engines failed to transcribe the audio. {err_details}")
+stt.errors.STTError: All STT engines failed to transcribe the audio. elevenlabs: API key rejected (401). whisper: open() got an unexpected keyword argument 'metadata_errors'
+
+2026-10-08 00:04:55,696 - app - ERROR - Pipeline error (ID: 7e3f06d8) during refining: Exception
+Traceback (most recent call last):
+  File "C:\Users\daksh\Downloads\MeetScribe\meeting_assistant\app\main.py", line 138, in _run_pipeline
+    ref_res = refine(stt_res, client)
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1228, in _execute_mock_call
+    raise effect
+Exception: OpenRouter 429
+
+2026-10-08 00:16:11,457 - app - ERROR - Pipeline error (ID: 427a1be9) during refining: Exception
+Traceback (most recent call last):
+  File "C:\Users\daksh\Downloads\MeetScribe\meeting_assistant\app\main.py", line 138, in _run_pipeline
+    ref_res = refine(stt_res, client)
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1228, in _execute_mock_call
+    raise effect
+Exception: OpenRouter 429
+
+2026-10-08 16:02:14,081 - app - ERROR - Pipeline error (ID: 0d7d3eee) during refining: Exception
+Traceback (most recent call last):
+  File "C:\Users\daksh\Downloads\MeetScribe\meeting_assistant\app\main.py", line 138, in _run_pipeline
+    ref_res = refine(stt_res, client)
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1228, in _execute_mock_call
+    raise effect
+Exception: OpenRouter 429
+
+2026-10-08 16:03:15,949 - app - ERROR - Pipeline error (ID: 08500362) during refining: Exception
+Traceback (most recent call last):
+  File "C:\Users\daksh\Downloads\MeetScribe\meeting_assistant\app\main.py", line 138, in _run_pipeline
+    ref_res = refine(stt_res, client)
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1228, in _execute_mock_call
+    raise effect
+Exception: OpenRouter 429
+
+2026-10-08 16:04:16,017 - app - ERROR - Pipeline error (ID: 2554d082) during refining: Exception
+Traceback (most recent call last):
+  File "C:\Users\daksh\Downloads\MeetScribe\meeting_assistant\app\main.py", line 138, in _run_pipeline
+    ref_res = refine(stt_res, client)
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1169, in __call__
+    return self._mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1173, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\daksh\AppData\Local\Programs\Python\Python313\Lib\unittest\mock.py", line 1228, in _execute_mock_call
+    raise effect
+Exception: OpenRouter 429
+
