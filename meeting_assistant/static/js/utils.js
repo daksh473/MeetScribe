@@ -8,8 +8,12 @@ export function esc(str) {
 export function formatTime(secs) {
     if (secs == null || isNaN(secs)) return '--:--';
     const s = Math.floor(secs);
-    const m = Math.floor(s / 60);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
     const rs = s % 60;
+    if (h > 0) {
+        return `${h}:${m < 10 ? '0' : ''}${m}:${rs < 10 ? '0' : ''}${rs}`;
+    }
     return `${m}:${rs < 10 ? '0' : ''}${rs}`;
 }
 

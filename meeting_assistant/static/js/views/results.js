@@ -5,7 +5,8 @@ import { getDownloadUrl } from '../api.js';
 import { renderDock, seekAudio } from '../components/audio.js';
 
 export function renderResults(container, dockContainer, overlayContainer) {
-    const r = state.result;
+    try {
+        const r = state.result;
     
     // Header
     const html = `
@@ -13,8 +14,8 @@ export function renderResults(container, dockContainer, overlayContainer) {
             <div>
                 <h2 style="margin:0">${esc(r.metadata?.file_name || 'Meeting Recording')}</h2>
                 <div class="flex gap-2 mt-4 flex-wrap">
-                    <span class="chip"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right:4px"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> ${formatTime(r.metadata?.duration_s || 0)}</span>
-                    <span class="chip badge-info">${r.metadata?.models_used?.length || 0} LLMs</span>
+                    <span class="chip"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right:4px"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> ${formatTime(r.metadata?.audio_duration_s || 0)}</span>
+                    <span class="chip badge-info">Models used: ${r.metadata?.models_used?.length || 0} calls</span>
                     <span class="chip badge-warn">${r.raw_transcript?.uncertain_spans?.length || 0} Uncertainties</span>
                     <span class="chip badge-ok">${r.minutes?.decisions?.length || 0} Decisions</span>
                     <span class="chip badge-crit">${r.minutes?.action_items?.length || 0} Tasks</span>
@@ -22,9 +23,30 @@ export function renderResults(container, dockContainer, overlayContainer) {
                 ${r.raw_transcript?.metadata?.engine_statuses ? `
                 <div class="mt-3 text-sm text-muted">
                     <strong>STT Engines:</strong> 
-                    ${Object.entries(r.raw_transcript.metadata.engine_statuses).map(([name, status]) => 
-                        `<span style="margin-right: 12px;"><strong style="color:var(--text)">${esc(name)}:</strong> ${esc(status)}</span>`
-                    ).join('')}
+                    ${Object.entries(r.raw_transcript.metadata.engine_statuses).map(([name, status]) => {
+                        let shortStatus = status;
+                        let detailHtml = '';
+                        const match = status.match(/^(.*?)\((.*)\)$/);
+                        if (match) {
+                            shortStatus = match[1].trim();
+                            const fullError = match[2];
+                            let readableShort = fullError;
+                            if (fullError.includes('free tier') || fullError.includes('free_tier') || fullError.includes('authorization') || fullError.includes('401') || fullError.includes('403')) {
+                                readableShort = "account blocked: free tier disabled";
+                                shortStatus = "unavailable";
+                            } else if (fullError.includes('Provider message:')) {
+                                readableShort = fullError.split('Provider message:')[0].trim();
+                            } else if (fullError.includes('{')) {
+                                readableShort = "API error";
+                                shortStatus = "unavailable";
+                            }
+                            shortStatus = `${shortStatus} (${esc(readableShort)})`;
+                            detailHtml = `<details style="margin-top: 4px;"><summary style="cursor:pointer; font-size: 0.85em;">Technical details</summary><pre style="font-size: 0.8em; margin-top: 4px; white-space: pre-wrap;">${esc(fullError)}</pre></details>`;
+                        } else {
+                            shortStatus = esc(status);
+                        }
+                        return `<div style="margin-bottom: 8px;"><strong style="color:var(--text)">${esc(name)}:</strong> ${shortStatus}${detailHtml}</div>`;
+                    }).join('')}
                 </div>
                 ` : ''}
             </div>
@@ -72,14 +94,44 @@ export function renderResults(container, dockContainer, overlayContainer) {
         }
     });
 
-    renderRaw(container.querySelector('#tab-raw'), overlayContainer);
-    renderRefined(container.querySelector('#tab-refined'), overlayContainer);
-    renderMinutes(container.querySelector('#tab-min'));
-    renderDecisions(container.querySelector('#tab-dec'));
-    renderActions(container.querySelector('#tab-act'));
-    renderUncertainty(container.querySelector('#tab-unc'));
+    function safeRender(el, renderFn, fallback = '') {
+        try {
+            renderFn();
+        } catch (e) {
+            console.error(e);
+            el.innerHTML = `
+                <div class="card">
+                    <div class="banner error-banner">This section could not be displayed</div>
+                    <details style="margin-top: 8px;">
+                        <summary style="cursor:pointer; font-size:0.85em; color:var(--muted)">Technical details</summary>
+                        <pre style="font-size:0.8em; margin-top:4px; white-space:pre-wrap;">${esc(e.name)}: ${esc(e.message)}</pre>
+                    </details>
+                    ${fallback}
+                </div>
+            `;
+        }
+    }
+
+    safeRender(container.querySelector('#tab-raw'), () => renderRaw(container.querySelector('#tab-raw'), overlayContainer), r.raw_transcript?.raw_text ? `<div class="mt-4"><div class="banner warn-banner mb-2">Displaying raw text fallback</div><p style="white-space:pre-wrap">${esc(r.raw_transcript.raw_text)}</p></div>` : '');
+    safeRender(container.querySelector('#tab-refined'), () => renderRefined(container.querySelector('#tab-refined')));
+    safeRender(container.querySelector('#tab-min'), () => renderMinutes(container.querySelector('#tab-min')));
+    safeRender(container.querySelector('#tab-dec'), () => renderDecisions(container.querySelector('#tab-dec')));
+    safeRender(container.querySelector('#tab-act'), () => renderActions(container.querySelector('#tab-act')));
+    safeRender(container.querySelector('#tab-unc'), () => renderUncertainty(container.querySelector('#tab-unc')));
 
     renderDock(dockContainer, state.jobId, r.raw_transcript?.uncertain_spans || []);
+    } catch (err) {
+        console.error("Critical rendering error:", err);
+        container.innerHTML = `
+            <div class="card">
+                <div class="banner error-banner">The UI encountered a critical error during rendering.</div>
+                <details style="margin-top: 8px;">
+                    <summary style="cursor:pointer; font-size:0.85em; color:var(--muted)">Technical details</summary>
+                    <pre style="font-size:0.8em; margin-top:4px; white-space:pre-wrap;">${esc(err.name)}: ${esc(err.message)}\n${err.stack ? esc(err.stack) : ''}</pre>
+                </details>
+            </div>
+        `;
+    }
 }
 
 function renderRaw(el, overlay) {
@@ -114,7 +166,7 @@ function renderRaw(el, overlay) {
         });
         
         html += `<div class="utterance">
-            <div class="u-meta"><span class="spk">${esc(seg.speaker || 'Speaker')}</span><span class="ts" onclick="window.seekAudio(${seg.start})">${formatTime(seg.start)}</span></div>
+            <div class="u-meta">${seg.speaker ? `<span class="spk">${esc(seg.speaker)}</span>` : ''}<span class="ts" onclick="window.seekAudio(${seg.start})">${formatTime(seg.start)}</span></div>
             <div>${text}</div>
         </div>`;
     });

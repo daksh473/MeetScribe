@@ -244,20 +244,19 @@ def run_stt(audio_path: str, progress_cb: Callable[[str, float, str], None] | No
         
         # Build STTResult
         from stt.schema import Segment
+        from stt.segmenter import build_segments
         
         raw_text = " ".join([w.text for w in consensus_res.words])
-        overall_segment = Segment(
-            text=raw_text,
-            start=consensus_res.words[0].start,
-            end=consensus_res.words[-1].end,
-            words=consensus_res.words
-        )
+        segments = build_segments(consensus_res.words)
         
+        if metadata.audio_duration_s == 0.0 and consensus_res.words:
+            metadata.audio_duration_s = consensus_res.words[-1].end
+            
         metadata.processing_time_s = time.perf_counter() - t0
         
         result = STTResult(
             raw_text=raw_text,
-            segments=[overall_segment],
+            segments=segments,
             uncertain_spans=spans,
             flags=consensus_res.flags,
             metadata=metadata
